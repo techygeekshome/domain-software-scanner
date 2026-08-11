@@ -5,7 +5,7 @@ all installed **third-party software with its version** — the same data you se
 in *Apps & features* / *Programs and Features* — as a filterable HTML report
 and a CSV. Use it from a **GUI** or from the **command line**.
 
-> Part of the **TechyGeeksHome — Ultimate Settings Panel** toolkit.
+> By [TechyGeeksHome](https://techygeekshome.info).
 > Read-only for your software: it only *reads* registry values. The only thing
 > it can *change* is starting/stopping the RemoteRegistry or WinRM service, and
 > only when you ask it to (and it can put that back afterwards).
