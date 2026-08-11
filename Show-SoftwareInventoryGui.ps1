@@ -291,28 +291,28 @@ $btnScan.FlatStyle = 'Flat'
 $form.Controls.Add($btnScan)
 
 $progress = New-Object System.Windows.Forms.ProgressBar
-$progress.Location = New-Object System.Drawing.Point(222, $scanY + 4)
+$progress.Location = New-Object System.Drawing.Point(222, ($scanY + 4))
 $progress.Size = New-Object System.Drawing.Size(430, 24)
 $progress.Anchor = 'Bottom,Left,Right'
 $progress.Style = 'Blocks'
 $script:progress = $progress
 $form.Controls.Add($progress)
 
-$btnOpenHtml = New-Object System.Windows.Forms.Button
-$btnOpenHtml.Text = 'Open HTML'
-$btnOpenHtml.Location = New-Object System.Drawing.Point(700, $scanY)
-$btnOpenHtml.Size = New-Object System.Drawing.Size(105, 34)
-$btnOpenHtml.Anchor = 'Bottom,Right'
-$btnOpenHtml.Enabled = $false
-$form.Controls.Add($btnOpenHtml)
+$script:btnOpenHtml = New-Object System.Windows.Forms.Button
+$script:btnOpenHtml.Text = 'Open HTML'
+$script:btnOpenHtml.Location = New-Object System.Drawing.Point(700, $scanY)
+$script:btnOpenHtml.Size = New-Object System.Drawing.Size(105, 34)
+$script:btnOpenHtml.Anchor = 'Bottom,Right'
+$script:btnOpenHtml.Enabled = $false
+$form.Controls.Add($script:btnOpenHtml)
 
-$btnOpenCsv = New-Object System.Windows.Forms.Button
-$btnOpenCsv.Text = 'Open CSV'
-$btnOpenCsv.Location = New-Object System.Drawing.Point(810, $scanY)
-$btnOpenCsv.Size = New-Object System.Drawing.Size(105, 34)
-$btnOpenCsv.Anchor = 'Bottom,Right'
-$btnOpenCsv.Enabled = $false
-$form.Controls.Add($btnOpenCsv)
+$script:btnOpenCsv = New-Object System.Windows.Forms.Button
+$script:btnOpenCsv.Text = 'Open CSV'
+$script:btnOpenCsv.Location = New-Object System.Drawing.Point(810, $scanY)
+$script:btnOpenCsv.Size = New-Object System.Drawing.Size(105, 34)
+$script:btnOpenCsv.Anchor = 'Bottom,Right'
+$script:btnOpenCsv.Enabled = $false
+$form.Controls.Add($script:btnOpenCsv)
 
 # ---- Log --------------------------------------------------------------------
 $log = New-Object System.Windows.Forms.TextBox
@@ -353,14 +353,14 @@ function Set-Busy {
 }
 
 function Get-CheckedComputers {
-    $script:grid.EndEdit()   # commit any half-clicked checkbox
+    $null = $script:grid.EndEdit()   # commit any half-clicked checkbox (EndEdit returns a bool - swallow it)
     $list = New-Object System.Collections.Generic.List[string]
     foreach ($row in $script:grid.Rows) {
         $sel = $row.Cells['Sel'].Value
         $name = $row.Cells['Computer'].Value
         if ($sel -eq $true -and $name) { $list.Add([string]$name) }
     }
-    return $list
+    return ,$list.ToArray()   # comma keeps it a [string[]] instead of unrolling
 }
 
 function Set-ComputerRows {
@@ -499,7 +499,7 @@ $btnCheck.Add_Click({
             Get-SIServiceState -ComputerName $_ -Name @('RemoteRegistry', 'WinRM')
         }
     }
-    Start-BackgroundWork -Work $work -Arguments @($script:SvcModule, $computers.ToArray()) `
+    Start-BackgroundWork -Work $work -Arguments @($script:SvcModule, $computers) `
         -BusyMessage ("Checking services on {0} machine(s)..." -f $computers.Count) -OnComplete {
         param($states)
         $map = @{}
@@ -534,7 +534,7 @@ function Invoke-StartService {
             Set-SIService -ComputerName $_ -Name $Svc -StartMode 'Manual' -Action 'Start'
         }
     }
-    Start-BackgroundWork -Work $work -Arguments @($script:SvcModule, $computers.ToArray(), $ServiceName) `
+    Start-BackgroundWork -Work $work -Arguments @($script:SvcModule, $computers, $ServiceName) `
         -BusyMessage ("Starting {0} on {1} machine(s)..." -f $ServiceName, $computers.Count) -OnComplete {
         param($results)
         $ok = 0; $fail = 0
@@ -545,11 +545,12 @@ function Invoke-StartService {
             if (-not $map.ContainsKey($name)) { continue }
             $r = $map[$name]
             if ($r.Success -and $r.State -eq 'Running') { $ok++ } else { $fail++ }
-            $col = if ($ServiceName -eq 'WinRM') { 'WinRM' } else { 'RemoteRegistry' }
+            # Derive the column from the result itself - $ServiceName isn't in scope here.
+            $col = if ($r.Name -eq 'WinRM') { 'WinRM' } else { 'RemoteRegistry' }
             Set-ServiceCell -Row $row -Column $col -Value ([string]$r.State)
             if ($r.Error) { Write-Log ("{0}: {1}" -f $name, $r.Error) }
         }
-        Write-Log ("{0}: started on {1}, failed on {2}." -f $ServiceName, $ok, $fail)
+        Write-Log ("Service start complete: succeeded on {0}, failed on {1}." -f $ok, $fail)
     }
 }
 $btnStartRR.Add_Click({ Invoke-StartService -ServiceName 'RemoteRegistry' })
@@ -579,8 +580,8 @@ $btnScan.Add_Click({
         AutoStart        = [bool]$chkAuto.Checked
         Restore          = [bool]$chkRestore.Checked
     }
-    $btnOpenHtml.Enabled = $false
-    $btnOpenCsv.Enabled  = $false
+    $script:btnOpenHtml.Enabled = $false
+    $script:btnOpenCsv.Enabled  = $false
 
     $work = {
         param($Cli, $Computers, $Opts)
@@ -610,7 +611,7 @@ $btnScan.Add_Click({
         }
     }
 
-    Start-BackgroundWork -Work $work -Arguments @($script:CliScript, $computers.ToArray(), $opts) `
+    Start-BackgroundWork -Work $work -Arguments @($script:CliScript, $computers, $opts) `
         -BusyMessage ("Scanning {0} computer(s) - this can take a while..." -f $computers.Count) -OnComplete {
         param($res)
         $r = $res | Where-Object { $_ -and $_.PSObject.Properties['Rows'] } | Select-Object -Last 1
@@ -620,16 +621,16 @@ $btnScan.Add_Click({
         }
         $script:LastHtml = $r.Html
         $script:LastCsv  = $r.Csv
-        $btnOpenHtml.Enabled = [bool]$r.Html
-        $btnOpenCsv.Enabled  = [bool]$r.Csv
+        $script:btnOpenHtml.Enabled = [bool]$r.Html
+        $script:btnOpenCsv.Enabled  = [bool]$r.Csv
         Write-Log ("Scan complete: {0} software row(s)." -f $r.Rows)
         if ($r.Html) { Write-Log ("HTML report: {0}" -f $r.Html) }
         if ($r.Csv)  { Write-Log ("CSV report:  {0}" -f $r.Csv) }
     }
 })
 
-$btnOpenHtml.Add_Click({ if ($script:LastHtml) { Start-Process $script:LastHtml } })
-$btnOpenCsv.Add_Click({ if ($script:LastCsv) { Start-Process $script:LastCsv } })
+$script:btnOpenHtml.Add_Click({ if ($script:LastHtml) { Start-Process $script:LastHtml } })
+$script:btnOpenCsv.Add_Click({ if ($script:LastCsv) { Start-Process $script:LastCsv } })
 
 # --- radio enable/disable niceties ------------------------------------------
 $updateTargetInputs = {
