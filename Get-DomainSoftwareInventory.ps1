@@ -224,26 +224,31 @@ $worker = {
         [System.Management.Automation.PSCredential]$Credential
     )
 
-    # Reachability check first - avoids long RPC timeouts on dead hosts.
-    # Test the transport TCP port (RPC 135, or WinRM 5985) rather than ICMP:
-    # many domains block ping at the firewall while leaving these ports open.
-    $probePort = if ($UseWinRM) { 5985 } else { 135 }
-    $reachable = $false
-    try {
+    # Reachability check first - avoids long RPC timeouts on dead hosts, and
+    # uses TCP (not ICMP, which is often firewalled) to decide.
+    # Remote Registry talks RPC over SMB named pipes (445) OR the RPC endpoint
+    # mapper (135) - 445 is open far more widely than 135 - so we treat the
+    # host as reachable if EITHER answers. WinRM uses 5985.
+    $probePorts = if ($UseWinRM) { @(5985) } else { @(445, 135) }
+    $reachablePort = $null
+    foreach ($p in $probePorts) {
         $tcp = [System.Net.Sockets.TcpClient]::new()
-        $iar = $tcp.BeginConnect($Computer, $probePort, $null, $null)
-        if ($iar.AsyncWaitHandle.WaitOne(2000, $false) -and $tcp.Connected) {
-            $tcp.EndConnect($iar)
-            $reachable = $true
-        }
-        $tcp.Close()
-    } catch { $reachable = $false }
+        try {
+            $iar = $tcp.BeginConnect($Computer, $p, $null, $null)
+            if ($iar.AsyncWaitHandle.WaitOne(1500, $false) -and $tcp.Connected) {
+                $tcp.EndConnect($iar)
+                $reachablePort = $p
+            }
+        } catch { }
+        finally { $tcp.Close() }
+        if ($reachablePort) { break }
+    }
 
-    if (-not $reachable) {
+    if (-not $reachablePort) {
         return [pscustomobject]@{
             ComputerName = $Computer
             Status       = 'Offline'
-            Error        = "TCP port $probePort unreachable"
+            Error        = ("No response on TCP {0}" -f ($probePorts -join '/'))
             Apps         = @()
         }
     }
