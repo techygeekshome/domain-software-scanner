@@ -225,11 +225,25 @@ $worker = {
     )
 
     # Reachability check first - avoids long RPC timeouts on dead hosts.
-    if (-not (Test-Connection -ComputerName $Computer -Count 1 -Quiet -ErrorAction SilentlyContinue)) {
+    # Test the transport TCP port (RPC 135, or WinRM 5985) rather than ICMP:
+    # many domains block ping at the firewall while leaving these ports open.
+    $probePort = if ($UseWinRM) { 5985 } else { 135 }
+    $reachable = $false
+    try {
+        $tcp = [System.Net.Sockets.TcpClient]::new()
+        $iar = $tcp.BeginConnect($Computer, $probePort, $null, $null)
+        if ($iar.AsyncWaitHandle.WaitOne(2000, $false) -and $tcp.Connected) {
+            $tcp.EndConnect($iar)
+            $reachable = $true
+        }
+        $tcp.Close()
+    } catch { $reachable = $false }
+
+    if (-not $reachable) {
         return [pscustomobject]@{
             ComputerName = $Computer
             Status       = 'Offline'
-            Error        = 'No ping response'
+            Error        = "TCP port $probePort unreachable"
             Apps         = @()
         }
     }
@@ -576,7 +590,8 @@ $dupSummary = $inventory |
             Installs       = $_.Count
         }
     } |
-    Sort-Object Installs -Descending, DisplayName
+    Sort-Object -Property @{ Expression = 'Installs'; Descending = $true },
+                          @{ Expression = 'DisplayName'; Descending = $false }
 
 $style = @'
 <style>
