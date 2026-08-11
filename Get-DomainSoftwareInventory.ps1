@@ -158,7 +158,7 @@ $stamp    = $startedAt.ToString('yyyy-MM-dd_HHmmss')
 $csvPath  = Join-Path $OutputFolder "SoftwareInventory_$stamp.csv"
 $htmlPath = Join-Path $OutputFolder "SoftwareInventory_$stamp.html"
 
-Write-Host "Ultimate Settings Panel - Domain Software Inventory" -ForegroundColor Cyan
+Write-Host "Domain Software Scanner" -ForegroundColor Cyan
 Write-Host "TechyGeeksHome  -  https://techygeekshome.info`n" -ForegroundColor DarkCyan
 
 # Service-control helpers (used only for -AutoStartService / -RestoreServiceState).
@@ -681,9 +681,9 @@ $failRowsHtml = ($failed | ForEach-Object {
 
 $html = @"
 <!doctype html><html><head><meta charset="utf-8">
-<title>Domain Software Inventory - TechyGeeksHome</title>$style$script</head><body>
-<h1>Domain Software Inventory</h1>
-<div class="sub">$genInfo &middot; TechyGeeksHome &middot; Ultimate Settings Panel</div>
+<title>Domain Software Scanner - TechyGeeksHome</title>$style$script</head><body>
+<h1>Domain Software Scanner</h1>
+<div class="sub">$genInfo &middot; TechyGeeksHome</div>
 $cards
 <h2>Installed third-party software</h2>
 <input id="q" placeholder="Filter... (computer, app, publisher)" onkeyup="filterRows()">
