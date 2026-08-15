@@ -1,1 +1,0 @@
-.\Get-DomainSoftwareInventory.ps1 -ComputerName SERVER01 -AutoStartService -IncludeMicrosoft -Verbose
